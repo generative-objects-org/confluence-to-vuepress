@@ -507,7 +507,8 @@ actions:
       devDependencies: {
         'vuepress': '^2.0.0-rc.18',
         '@vuepress/bundler-vite': '^2.0.0-rc.18',
-        '@vuepress/theme-default': '^2.0.0-rc.61'
+        '@vuepress/theme-default': '^2.0.0-rc.61',
+        'sass-embedded': '^1.83.0'
       }
     };
     await fs.writeFile(
