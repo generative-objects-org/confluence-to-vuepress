@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Output directory (migrated content)
+docs/
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+
+# Config files with credentials
+.confluencerc.json
+confluence.config.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test output
+coverage/
+
+# Build output
+dist/
+
+# Temp files
+*.tmp
+*.temp

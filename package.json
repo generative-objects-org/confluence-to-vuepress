@@ -1,0 +1,51 @@
+{
+  "name": "confluence-to-vuepress",
+  "version": "1.0.0",
+  "description": "Migrate Confluence wiki pages to a VuePress static documentation site",
+  "main": "src/index.js",
+  "bin": {
+    "confluence-to-vuepress": "bin/confluence-to-vuepress.js"
+  },
+  "scripts": {
+    "migrate": "node bin/confluence-to-vuepress.js migrate",
+    "test-connection": "node bin/confluence-to-vuepress.js test",
+    "init": "node bin/confluence-to-vuepress.js init"
+  },
+  "keywords": [
+    "confluence",
+    "vuepress",
+    "migration",
+    "documentation",
+    "wiki",
+    "markdown",
+    "static-site",
+    "atlassian"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/generative-objects-org/confluence-to-vuepress.git"
+  },
+  "bugs": {
+    "url": "https://github.com/generative-objects-org/confluence-to-vuepress/issues"
+  },
+  "homepage": "https://github.com/generative-objects-org/confluence-to-vuepress#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "axios": "^1.6.0",
+    "commander": "^11.1.0",
+    "turndown": "^7.1.2"
+  },
+  "optionalDependencies": {
+    "dotenv": "^16.3.1"
+  }
+}
