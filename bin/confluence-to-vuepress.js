@@ -54,11 +54,11 @@ program
   .option('-u, --url <url>', 'Confluence base URL (e.g., https://yoursite.atlassian.net)')
   .option('-p, --page-id <id>', 'Root page ID to migrate')
   .option('-s, --space <key>', 'Confluence space key')
-  .option('-o, --output <dir>', 'Output directory', './docs')
+  .option('-o, --output <dir>', 'Output directory (default: ./docs)')
   .option('-e, --email <email>', 'Confluence account email')
   .option('-t, --token <token>', 'Confluence API token')
-  .option('--title <title>', 'Site title', 'Documentation')
-  .option('--description <desc>', 'Site description', 'Migrated from Confluence')
+  .option('--title <title>', 'Site title (default: Documentation)')
+  .option('--description <desc>', 'Site description (default: Migrated from Confluence)')
   .option('--no-external-images', 'Skip downloading external images')
   .option('-c, --config <path>', 'Path to config file')
   .action(async (options) => {
@@ -69,7 +69,7 @@ program
         confluenceUrl: options.url || fileConfig.confluenceUrl || process.env.CONFLUENCE_URL,
         rootPageId: options.pageId || fileConfig.rootPageId || process.env.CONFLUENCE_ROOT_PAGE_ID,
         spaceKey: options.space || fileConfig.spaceKey || process.env.CONFLUENCE_SPACE_KEY,
-        outputDir: options.output || fileConfig.outputDir || './docs',
+        outputDir: options.output || fileConfig.outputDir || process.env.CONFLUENCE_OUTPUT_DIR || './docs',
         email: options.email || fileConfig.email || process.env.CONFLUENCE_EMAIL,
         apiToken: options.token || fileConfig.apiToken || process.env.CONFLUENCE_API_TOKEN,
         siteTitle: options.title || fileConfig.siteTitle || 'Documentation',
