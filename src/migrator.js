@@ -494,6 +494,30 @@ actions:
   }
 
   /**
+   * Create VuePress package.json
+   */
+  async createPackageJson() {
+    const packageJson = {
+      name: 'docs',
+      version: '1.0.0',
+      scripts: {
+        dev: 'vuepress dev',
+        build: 'vuepress build'
+      },
+      devDependencies: {
+        'vuepress': '^2.0.0-rc.18',
+        '@vuepress/bundler-vite': '^2.0.0-rc.18',
+        '@vuepress/theme-default': '^2.0.0-rc.61'
+      }
+    };
+    await fs.writeFile(
+      path.join(this.config.outputDir, 'package.json'),
+      JSON.stringify(packageJson, null, 2),
+      'utf-8'
+    );
+  }
+
+  /**
    * Run the migration
    */
   async migrate() {
@@ -516,6 +540,10 @@ actions:
     console.log('\n📝 Creating homepage...');
     await this.createHomepage();
     console.log(`✓ Saved: ${path.join(this.config.outputDir, 'README.md')}`);
+
+    console.log('\n📦 Creating package.json...');
+    await this.createPackageJson();
+    console.log(`✓ Saved: ${path.join(this.config.outputDir, 'package.json')}`);
 
     console.log('\n✅ Migration completed successfully!');
 
