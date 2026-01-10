@@ -19,7 +19,13 @@
     "wiki",
     "markdown",
     "static-site",
-    "atlassian"
+    "atlassian",
+    "wiki-migration",
+    "documentation-migration",
+    "static-site-generator",
+    "confluence-cloud",
+    "confluence-api",
+    "html-to-markdown"
   ],
   "author": "",
   "license": "MIT",

@@ -2,6 +2,8 @@
 
 Migrate your Confluence wiki pages to a VuePress static documentation site.
 
+> A CLI tool and Node.js library for migrating Atlassian Confluence Cloud wikis to VuePress 2 static sites. Converts Confluence pages to Markdown, downloads attachments, and generates a ready-to-use VuePress project.
+
 ## Features
 
 - Converts Confluence pages to Markdown format

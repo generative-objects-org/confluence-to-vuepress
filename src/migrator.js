@@ -433,15 +433,11 @@ title: ${yamlTitle}
       const result = {
         text: page.title,
         link: '/' + page.path,
-        children: []
       };
 
       if (page.children.length > 0) {
         result.children = page.children.map(childId => buildSidebar(childId)).filter(Boolean);
-      }
-
-      if (result.children.length === 0) {
-        delete result.children;
+        result.collapsible = true;
       }
 
       return result;
@@ -452,7 +448,8 @@ title: ${yamlTitle}
     const sidebarJs = sidebarJson
       .replace(/"text":/g, 'text:')
       .replace(/"link":/g, 'link:')
-      .replace(/"children":/g, 'children:');
+      .replace(/"children":/g, 'children:')
+      .replace(/"collapsible":/g, 'collapsible:');
 
     return `import { defaultTheme } from '@vuepress/theme-default'
 import { viteBundler } from '@vuepress/bundler-vite'
