@@ -221,6 +221,7 @@ docs/
 |--------------|--------|
 | Page content | Converted to Markdown |
 | Page hierarchy | Preserved as folder structure |
+| Page ordering | Maintained using Confluence position metadata |
 | Images & attachments | Downloaded locally |
 | External images | Downloaded locally |
 | Code blocks | Preserved with syntax highlighting |
@@ -228,12 +229,66 @@ docs/
 | Internal links | Converted to relative links |
 | External links | Preserved |
 
+## Confluence Elements Handled
+
+The tool handles various Confluence-specific elements and edge cases:
+
+### Images & Attachments
+
+| Element | Handling |
+|---------|----------|
+| `<ac:image>` with `<ri:attachment>` | Converted to local image path |
+| `<ac:image>` with `<ri:url>` | External images downloaded locally |
+| Blob images (`data-fileid`) | Mapped to downloaded attachments |
+| Filenames with invalid characters | Sanitized (colons, spaces replaced with underscores) |
+| Attachments from parent pages | Automatically copied to child pages |
+| Attachments from sibling pages | Searched and copied when referenced |
+
+### Panels & Macros
+
+| Element | Handling |
+|---------|----------|
+| Info panels (`ac:name="info"`) | Converted to blockquote with **INFO:** prefix |
+| Note panels (`ac:name="note"`) | Converted to blockquote with **NOTE:** prefix |
+| Warning panels (`ac:name="warning"`) | Converted to blockquote with **WARNING:** prefix |
+| Tip panels (`ac:name="tip"`) | Converted to blockquote with **TIP:** prefix |
+| Other `ac:structured-macro` | Removed (content not preservable) |
+
+### Links
+
+| Element | Handling |
+|---------|----------|
+| `<ac:link>` with page title | Converted to relative markdown links |
+| External links | Preserved as-is |
+| Confluence download URLs | Converted to local paths |
+
+### VuePress Compatibility
+
+| Issue | Handling |
+|-------|----------|
+| Type-like tags (`<Type>`, `<Entity>`) | Escaped with backticks to prevent Vue errors |
+| HTML tags in text (`<div>`, `<span>`) | Escaped with backticks |
+| YAML special characters in titles | Properly quoted in frontmatter |
+| SVG icons | Removed (decorative) |
+| Heading anchor buttons | Removed (navigation clutter) |
+| Atlassian Editor wrapper spans | Removed, content preserved |
+
+### Generated Output
+
+| Output | Description |
+|--------|-------------|
+| VuePress config | Sidebar with collapsible navigation |
+| Homepage | VuePress home layout with hero section |
+| package.json | Ready-to-use with VuePress dependencies |
+| Folder structure | Mirrors Confluence page hierarchy |
+
 ## Limitations
 
-- Confluence macros are stripped (except code blocks)
+- Some Confluence macros are stripped (those without preservable content)
 - Complex layouts may not preserve exact formatting
 - Comments and page history are not migrated
 - Permissions are not migrated
+- Embedded content from third-party integrations not supported
 
 ## Troubleshooting
 

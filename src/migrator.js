@@ -31,7 +31,7 @@ function createTurndownService() {
 
 // Pre-process Confluence HTML to convert special elements before Turndown
 function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
-  // Build fileId to path mapping
+  // Build fileId to path mapping for blob images
   const fileIdMap = {};
   attachments.forEach(att => {
     if (att.fileId) {
@@ -45,12 +45,11 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
     (match, fileId) => {
       const localPath = fileIdMap[fileId];
       if (localPath) {
-        // Extract alt text if present
         const altMatch = match.match(/alt="([^"]*)"/);
         const alt = altMatch ? altMatch[1] : 'image';
         return `<img src="${localPath}" alt="${alt}" />`;
       }
-      return match; // Keep original if no mapping found
+      return match;
     }
   );
 
@@ -78,24 +77,24 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
   // Remove data-loadable wrapper spans (keep content)
   html = html.replace(/<span[^>]*data-loadable-vc-wrapper[^>]*>([\s\S]*?)<\/span>/gi, '$1');
 
-  // Convert <ac:image> with <ri:attachment> to standard <img> tags
-  // Use a pattern that doesn't cross </ac:image> boundaries
-  html = html.replace(
-    /<ac:image[^>]*>(?:(?!<\/ac:image>).)*?<ri:attachment\s+ri:filename="([^"]+)"[^>]*\/?>(?:(?!<\/ac:image>).)*?<\/ac:image>/gi,
-    (match, filename) => {
+  // Convert <ac:image> to standard <img> tags
+  // Handle both ri:attachment (local files) and ri:url (external images)
+  html = html.replace(/<ac:image[^>]*>([\s\S]*?)<\/ac:image>/gi, (match, inner) => {
+    // Check for ri:attachment with filename
+    const filenameMatch = inner.match(/ri:filename="([^"]+)"/);
+    if (filenameMatch) {
+      const filename = filenameMatch[1];
       const safeFilename = sanitizeFilename(filename);
       const imgPath = `./attachments/${pageSlug}/${safeFilename}`;
       return `<img src="${imgPath}" alt="${safeFilename}" />`;
     }
-  );
-
-  // Handle <ac:image> with <ri:url> for external images
-  html = html.replace(
-    /<ac:image[\s\S]*?<ri:url[\s\S]*?ri:value="([^"]+)"[\s\S]*?<\/ac:image>/gi,
-    (match, url) => {
-      return `<img src="${url}" alt="external-image" />`;
+    // Check for ri:url with external link
+    const urlMatch = inner.match(/ri:value="([^"]+)"/);
+    if (urlMatch) {
+      return `<img src="${urlMatch[1]}" alt="external-image" />`;
     }
-  );
+    return match;
+  });
 
   // Convert Confluence info/note/warning/tip panels to blockquotes
   // These are ac:structured-macro with ac:name="info|note|warning|tip"
@@ -107,8 +106,16 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
     }
   );
 
-  // Remove other Confluence macros that don't convert well (but not the ones we already handled)
-  html = html.replace(/<ac:structured-macro[^>]*>[\s\S]*?<\/ac:structured-macro>/gi, '');
+  // Remove other Confluence macros BUT preserve any img tags inside them
+  html = html.replace(/<ac:structured-macro[^>]*>[\s\S]*?<\/ac:structured-macro>/gi, (match) => {
+    // Extract any img tags inside this macro to preserve them
+    const imgTags = match.match(/<img[^>]*>/gi);
+    if (imgTags && imgTags.length > 0) {
+      return imgTags.join('\n');
+    }
+    return '';
+  });
+
   html = html.replace(/<ac:parameter[^>]*>[\s\S]*?<\/ac:parameter>/gi, '');
 
   // Convert <ac:link> to standard links where possible
