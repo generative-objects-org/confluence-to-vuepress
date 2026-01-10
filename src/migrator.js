@@ -74,7 +74,17 @@ function preprocessConfluenceHtml(html, pageSlug) {
     }
   );
 
-  // Remove other Confluence macros that don't convert well
+  // Convert Confluence info/note/warning/tip panels to blockquotes
+  // These are ac:structured-macro with ac:name="info|note|warning|tip"
+  html = html.replace(
+    /<ac:structured-macro[^>]*ac:name="(info|note|warning|tip)"[^>]*>[\s\S]*?<ac:rich-text-body>([\s\S]*?)<\/ac:rich-text-body>[\s\S]*?<\/ac:structured-macro>/gi,
+    (match, panelType, content) => {
+      const prefix = `**${panelType.toUpperCase()}:** `;
+      return `<blockquote>${prefix}${content}</blockquote>`;
+    }
+  );
+
+  // Remove other Confluence macros that don't convert well (but not the ones we already handled)
   html = html.replace(/<ac:structured-macro[^>]*>[\s\S]*?<\/ac:structured-macro>/gi, '');
   html = html.replace(/<ac:parameter[^>]*>[\s\S]*?<\/ac:parameter>/gi, '');
 
