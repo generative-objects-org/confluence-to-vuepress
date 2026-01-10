@@ -286,7 +286,7 @@ class ConfluenceToVuePress {
   }
 
   /**
-   * Copy missing attachments from parent pages
+   * Copy missing attachments from parent or sibling pages
    */
   async copyMissingAttachments(markdown, attachmentDir, pageSlug, parentPath, indent = '') {
     const imagePattern = /!\[[^\]]*\]\(\.\/attachments\/[^/]+\/([^)]+)\)/gi;
@@ -304,12 +304,13 @@ class ConfluenceToVuePress {
         await fs.access(localPath);
         continue; // File exists
       } catch {
-        // File doesn't exist, search parents
+        // File doesn't exist, search elsewhere
       }
 
-      let searchPath = parentPath;
       let found = false;
 
+      // Search parent hierarchy
+      let searchPath = parentPath;
       while (searchPath && !found) {
         const parentSlug = path.basename(searchPath);
         const parentAttachmentDir = path.join(this.config.outputDir, searchPath, 'attachments', parentSlug);
@@ -321,6 +322,28 @@ class ConfluenceToVuePress {
           console.log(`${indent}  ✓ Copied from parent: ${filename}`);
           found = true;
         } catch {
+          // Also search sibling folders at this level
+          try {
+            const parentDir = path.join(this.config.outputDir, searchPath);
+            const siblings = await fs.readdir(parentDir, { withFileTypes: true });
+            for (const sibling of siblings) {
+              if (sibling.isDirectory() && !found) {
+                const siblingAttachmentDir = path.join(parentDir, sibling.name, 'attachments', sibling.name);
+                const siblingFilePath = path.join(siblingAttachmentDir, filename);
+                try {
+                  await fs.access(siblingFilePath);
+                  await fs.copyFile(siblingFilePath, localPath);
+                  console.log(`${indent}  ✓ Copied from sibling: ${filename}`);
+                  found = true;
+                } catch {
+                  // Not in this sibling
+                }
+              }
+            }
+          } catch {
+            // Can't read parent directory
+          }
+
           searchPath = path.dirname(searchPath);
           if (searchPath === '.' || searchPath === '') {
             searchPath = null;
