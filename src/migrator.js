@@ -169,14 +169,24 @@ class ConfluenceToVuePress {
   }
 
   /**
-   * Fetch child pages
+   * Fetch child pages in correct order
    */
   async fetchChildPages(pageId) {
     try {
       const response = await this.api.get(`/content/${pageId}/child/page`, {
-        params: { limit: 100 }
+        params: {
+          limit: 100,
+          expand: 'extensions.position'
+        }
       });
-      return response.data.results;
+      // Sort by position to maintain Confluence page order
+      const pages = response.data.results;
+      pages.sort((a, b) => {
+        const posA = a.extensions?.position ?? 999999;
+        const posB = b.extensions?.position ?? 999999;
+        return posA - posB;
+      });
+      return pages;
     } catch (error) {
       console.error(`Error fetching children of ${pageId}:`, error.message);
       return [];
