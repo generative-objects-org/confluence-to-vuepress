@@ -30,7 +30,30 @@ function createTurndownService() {
 }
 
 // Pre-process Confluence HTML to convert special elements before Turndown
-function preprocessConfluenceHtml(html, pageSlug) {
+function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
+  // Build fileId to path mapping
+  const fileIdMap = {};
+  attachments.forEach(att => {
+    if (att.fileId) {
+      fileIdMap[att.fileId] = att.path;
+    }
+  });
+
+  // Convert blob images with data-fileid to local paths
+  html = html.replace(
+    /<img[^>]*data-fileid="([^"]+)"[^>]*>/gi,
+    (match, fileId) => {
+      const localPath = fileIdMap[fileId];
+      if (localPath) {
+        // Extract alt text if present
+        const altMatch = match.match(/alt="([^"]*)"/);
+        const alt = altMatch ? altMatch[1] : 'image';
+        return `<img src="${localPath}" alt="${alt}" />`;
+      }
+      return match; // Keep original if no mapping found
+    }
+  );
+
   // Remove SVG elements (icons, decorations)
   html = html.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '');
 
@@ -243,7 +266,7 @@ class ConfluenceToVuePress {
   async downloadAttachments(pageId, pageSlug, outputDir) {
     try {
       const response = await this.api.get(`/content/${pageId}/child/attachment`, {
-        params: { limit: 100, expand: 'version' }
+        params: { limit: 100, expand: 'version,extensions.fileId' }
       });
 
       const attachments = response.data.results;
@@ -270,7 +293,8 @@ class ConfluenceToVuePress {
           downloadedFiles.push({
             original: originalFilename,
             sanitized: safeFilename,
-            path: `./attachments/${pageSlug}/${safeFilename}`
+            path: `./attachments/${pageSlug}/${safeFilename}`,
+            fileId: attachment.extensions?.fileId || null
           });
           console.log(`  ✓ Downloaded: ${safeFilename}`);
         } catch (error) {
@@ -407,7 +431,7 @@ class ConfluenceToVuePress {
    * Convert HTML to Markdown
    */
   convertToMarkdown(html, attachments = [], pageSlug = '') {
-    html = preprocessConfluenceHtml(html, pageSlug);
+    html = preprocessConfluenceHtml(html, pageSlug, attachments);
     let markdown = this.turndownService.turndown(html);
 
     // Fix attachment links
