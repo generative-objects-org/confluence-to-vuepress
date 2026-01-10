@@ -31,6 +31,30 @@ function createTurndownService() {
 
 // Pre-process Confluence HTML to convert special elements before Turndown
 function preprocessConfluenceHtml(html, pageSlug) {
+  // Remove SVG elements (icons, decorations)
+  html = html.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '');
+
+  // Remove heading anchor buttons and wrappers
+  html = html.replace(/<span[^>]*class="[^"]*heading-anchor-wrapper[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '');
+  html = html.replace(/<button[^>]*data-testid="anchor-button"[^>]*>[\s\S]*?<\/button>/gi, '');
+  html = html.replace(/<span[^>]*data-testid="visually-hidden[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '');
+
+  // Convert Atlassian Editor panels to blockquotes
+  // Extract content from ak-editor-panel and convert to blockquote with type prefix
+  html = html.replace(
+    /<div[^>]*class="[^"]*ak-editor-panel[^"]*"[^>]*data-panel-type="([^"]*)"[^>]*>[\s\S]*?<div[^>]*class="[^"]*ak-editor-panel__content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi,
+    (match, panelType, content) => {
+      const prefix = panelType ? `**${panelType.toUpperCase()}:** ` : '';
+      return `<blockquote>${prefix}${content}</blockquote>`;
+    }
+  );
+
+  // Remove panel icon divs that might remain
+  html = html.replace(/<div[^>]*class="[^"]*ak-editor-panel__icon[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+
+  // Remove data-loadable wrapper spans (keep content)
+  html = html.replace(/<span[^>]*data-loadable-vc-wrapper[^>]*>([\s\S]*?)<\/span>/gi, '$1');
+
   // Convert <ac:image> with <ri:attachment> to standard <img> tags
   // Use a pattern that doesn't cross </ac:image> boundaries
   html = html.replace(
