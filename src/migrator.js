@@ -36,8 +36,9 @@ function preprocessConfluenceHtml(html, pageSlug) {
   html = html.replace(
     /<ac:image[^>]*>(?:(?!<\/ac:image>).)*?<ri:attachment\s+ri:filename="([^"]+)"[^>]*\/?>(?:(?!<\/ac:image>).)*?<\/ac:image>/gi,
     (match, filename) => {
-      const imgPath = `./attachments/${pageSlug}/${filename}`;
-      return `<img src="${imgPath}" alt="${filename}" />`;
+      const safeFilename = sanitizeFilename(filename);
+      const imgPath = `./attachments/${pageSlug}/${safeFilename}`;
+      return `<img src="${imgPath}" alt="${safeFilename}" />`;
     }
   );
 
@@ -71,6 +72,15 @@ function slugify(text) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+// Utility: sanitize filename for Windows/cross-platform compatibility
+function sanitizeFilename(filename) {
+  // Replace characters invalid on Windows: < > : " / \ | ? *
+  // Also replace spaces with underscores for better URL compatibility
+  return filename
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, '_');
 }
 
 // Utility: create safe directory path
@@ -210,8 +220,9 @@ class ConfluenceToVuePress {
 
       const downloadedFiles = [];
       for (const attachment of attachments) {
-        const filename = attachment.title;
-        const filepath = path.join(attachmentDir, filename);
+        const originalFilename = attachment.title;
+        const safeFilename = sanitizeFilename(originalFilename);
+        const filepath = path.join(attachmentDir, safeFilename);
 
         try {
           const downloadUrl = `${this.config.confluenceUrl}/wiki${attachment._links.download}`;
@@ -223,12 +234,13 @@ class ConfluenceToVuePress {
 
           await fs.writeFile(filepath, fileResponse.data);
           downloadedFiles.push({
-            original: filename,
-            path: `./attachments/${pageSlug}/${filename}`
+            original: originalFilename,
+            sanitized: safeFilename,
+            path: `./attachments/${pageSlug}/${safeFilename}`
           });
-          console.log(`  ✓ Downloaded: ${filename}`);
+          console.log(`  ✓ Downloaded: ${safeFilename}`);
         } catch (error) {
-          console.error(`  ✗ Failed to download ${filename}: ${error.response?.status || error.message}`);
+          console.error(`  ✗ Failed to download ${originalFilename}: ${error.response?.status || error.message}`);
         }
       }
 
