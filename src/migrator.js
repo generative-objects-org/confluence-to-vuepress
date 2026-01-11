@@ -106,7 +106,10 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
     }
   );
 
-  // Remove other Confluence macros BUT preserve any img tags inside them
+  // Remove self-closing Confluence macros (like TOC)
+  html = html.replace(/<ac:structured-macro[^>]*\/>/gi, '');
+
+  // Remove other Confluence macros with closing tags, BUT preserve any img tags inside them
   html = html.replace(/<ac:structured-macro[^>]*>[\s\S]*?<\/ac:structured-macro>/gi, (match) => {
     // Extract any img tags inside this macro to preserve them
     const imgTags = match.match(/<img[^>]*>/gi);
