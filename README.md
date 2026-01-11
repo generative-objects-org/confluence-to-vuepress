@@ -259,7 +259,9 @@ The tool handles various Confluence-specific elements and edge cases:
 
 | Element | Handling |
 |---------|----------|
-| `<ac:link>` with page title | Converted to relative markdown links |
+| `<ac:link>` with `<ac:link-body>` | Converted to relative markdown links |
+| `<ac:link>` with `<ac:plain-text-link-body>` | Converted to relative markdown links |
+| `<ac:link>` with page title only | Uses page title as link text |
 | External links | Preserved as-is |
 | Confluence download URLs | Converted to local paths |
 
