@@ -9,7 +9,10 @@
   "scripts": {
     "migrate": "node bin/confluence-to-vuepress.js migrate",
     "test-connection": "node bin/confluence-to-vuepress.js test",
-    "init": "node bin/confluence-to-vuepress.js init"
+    "init": "node bin/confluence-to-vuepress.js init",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [
     "confluence",
@@ -54,5 +57,8 @@
   },
   "optionalDependencies": {
     "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0"
   }
 }

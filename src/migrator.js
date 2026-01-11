@@ -929,4 +929,11 @@ div[class*="language-"] {
   }
 }
 
-module.exports = { ConfluenceToVuePress, slugify };
+module.exports = {
+  ConfluenceToVuePress,
+  slugify,
+  sanitizeFilename,
+  escapeRegex,
+  preprocessConfluenceHtml,
+  createTurndownService
+};
