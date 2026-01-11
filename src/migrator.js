@@ -693,7 +693,11 @@ actions:
     const placeholderPattern = /\[([^\]]+)\]\(CONFLUENCE_LINK:([^)]+)\)/g;
 
     // Pattern to match Confluence page URLs (for links that weren't converted)
+    // Format: /wiki/spaces/XXX/pages/PAGEID
     const confluenceUrlPattern = /\[([^\]]+)\]\(((?:https?:\/\/[^\/]+)?\/wiki\/spaces\/[^\/]+\/pages\/(\d+)[^)]*)\)/g;
+
+    // Alternative format: /wiki/pages/viewpage.action?pageId=PAGEID
+    const viewPagePattern = /\[([^\]]+)\]\(((?:https?:\/\/[^\/]+)?\/wiki\/pages\/viewpage\.action\?pageId=(\d+)[^)]*)\)/g;
 
     let fixedCount = 0;
 
@@ -728,8 +732,8 @@ actions:
           return linkText;
         });
 
-        // Fix Confluence URL links
-        content = content.replace(confluenceUrlPattern, (match, linkText, fullUrl, targetPageId) => {
+        // Fix Confluence URL links (both formats)
+        const fixUrlLink = (match, linkText, fullUrl, targetPageId) => {
           const targetPath = pageIdToPath.get(targetPageId);
           if (targetPath) {
             const currentParts = pageInfo.path.split('/').filter(Boolean);
@@ -741,7 +745,10 @@ actions:
             return `[${linkText}](${relativePath})`;
           }
           return match;
-        });
+        };
+
+        content = content.replace(confluenceUrlPattern, fixUrlLink);
+        content = content.replace(viewPagePattern, fixUrlLink);
 
         if (modified) {
           await fs.writeFile(mdPath, content, 'utf-8');
