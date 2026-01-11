@@ -25,8 +25,21 @@ function createTurndownService() {
       return node.nodeName === 'PRE' || (node.nodeName === 'DIV' && node.classList.contains('code'));
     },
     replacement: function (content, node) {
-      const language = node.getAttribute('data-language') || '';
-      return '\n```' + language + '\n' + content + '\n```\n';
+      // Check for language in data-language attribute
+      let language = node.getAttribute('data-language') || '';
+      // Also check for language in code element's class (language-xxx)
+      if (!language && node.nodeName === 'PRE') {
+        const codeEl = node.querySelector('code');
+        if (codeEl) {
+          const classMatch = (codeEl.className || '').match(/language-(\w+)/);
+          if (classMatch) {
+            language = classMatch[1];
+          }
+        }
+      }
+      // Get the text content directly (it's already escaped HTML entities)
+      const codeContent = node.textContent || content;
+      return '\n```' + language + '\n' + codeContent + '\n```\n';
     }
   });
 
@@ -110,6 +123,33 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
     }
   );
 
+  // Convert Confluence code macros to HTML pre/code blocks
+  // These are ac:structured-macro with ac:name="code" containing ac:plain-text-body with CDATA
+  // Helper function to convert code content to pre/code HTML
+  const convertCodeBlock = (codeContent, language = '') => {
+    // Convert tabs to newlines to ensure proper code block formatting
+    // (Confluence sometimes uses tabs as line separators in CDATA)
+    let code = codeContent.replace(/\t/g, '\n');
+    // Escape any HTML-like content in the code to prevent parsing issues
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return `<pre><code class="language-${language}">${escapedCode}</code></pre>`;
+  };
+
+  // First handle code macros WITH language parameter
+  html = html.replace(
+    /<ac:structured-macro[^>]*ac:name="code"[^>]*>[\s\S]*?<ac:parameter[^>]*ac:name="language"[^>]*>([^<]*)<\/ac:parameter>[\s\S]*?<ac:plain-text-body><!\[CDATA\[([\s\S]*?)\]\]><\/ac:plain-text-body>[\s\S]*?<\/ac:structured-macro>/gi,
+    (match, language, codeContent) => convertCodeBlock(codeContent, language)
+  );
+
+  // Then handle code macros WITHOUT language parameter (or language comes after plain-text-body)
+  html = html.replace(
+    /<ac:structured-macro[^>]*ac:name="code"[^>]*>[\s\S]*?<ac:plain-text-body><!\[CDATA\[([\s\S]*?)\]\]><\/ac:plain-text-body>[\s\S]*?<\/ac:structured-macro>/gi,
+    (match, codeContent) => convertCodeBlock(codeContent)
+  );
+
   // Remove self-closing Confluence macros (like TOC)
   html = html.replace(/<ac:structured-macro[^>]*\/>/gi, '');
 
@@ -131,11 +171,12 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
   // Remove data attributes from table elements
   html = html.replace(/<table[^>]*>/gi, '<table>');
   // Strip <p> tags from inside table cells (keep content)
-  html = html.replace(/(<t[hd][^>]*>)\s*<p[^>]*>([\s\S]*?)<\/p>\s*(<\/t[hd]>)/gi, '$1$2$3');
+  // Note: Match <p> or <p with space/attributes, NOT <pre> or <param> etc
+  html = html.replace(/(<t[hd][^>]*>)\s*<p(?:\s[^>]*)?>([\s\S]*?)<\/p>\s*(<\/t[hd]>)/gi, '$1$2$3');
   // Handle cells with multiple <p> tags or lists - convert to breaks
-  html = html.replace(/<\/p>\s*<p[^>]*>/gi, '<br/>');
+  html = html.replace(/<\/p>\s*<p(?:\s[^>]*)?>/gi, '<br/>');
   // Clean remaining <p> tags in cells
-  html = html.replace(/(<t[hd][^>]*>)\s*<p[^>]*>/gi, '$1');
+  html = html.replace(/(<t[hd][^>]*>)\s*<p(?:\s[^>]*)?>/gi, '$1');
   html = html.replace(/<\/p>\s*(<\/t[hd]>)/gi, '$1');
   // Clean up attributes on th/td (but not thead/tbody)
   html = html.replace(/<(th|td)\s+[^>]*>/gi, '<$1>');
@@ -501,21 +542,45 @@ class ConfluenceToVuePress {
     );
 
     // Escape HTML tags that appear as text references (not part of HTML structure)
-    // Only escape when preceded by space/punctuation/start (not by >) and followed by space/punctuation/end (not by <)
-    // This preserves actual HTML structure while escaping documentation references like "use <ul> tags"
+    // First, protect fenced code blocks from escaping
+    const codeBlockPlaceholders = [];
+    markdown = markdown.replace(/```[\s\S]*?```/g, (match) => {
+      codeBlockPlaceholders.push(match);
+      return `__CODE_BLOCK_${codeBlockPlaceholders.length - 1}__`;
+    });
+
+    // HTML tags to escape when they appear as text
     const htmlTagNames = 'div|span|form|input|button|select|textarea|label|ul|ol|li|p|br|img|dl|dt|dd|a|hr|header|footer|section|aside|nav|article|main|figure|figcaption|table|tr|td|th|thead|tbody|h[1-6]';
 
-    // Escape opening tags that appear as text (preceded by word boundary or punctuation, not >)
-    markdown = markdown.replace(
-      new RegExp(`(?<![>\`])(<(?:${htmlTagNames})(?:\\s[^>]*)?>)(?![<])`, 'gi'),
-      '`$1`'
-    );
+    // Escape HTML tags that appear as text references (like "use <ul> tags" or "<ol><li>")
+    // Use negative lookahead (?!`) to prevent re-escaping already-escaped tags
+    // Allow backticks in "before" so adjacent tags like `<ol>`<li> can match <li>
+    const escapeOpeningTags = () => {
+      return markdown.replace(
+        new RegExp(`(^|[^>])(<(?:${htmlTagNames})(?:\\s[^>]*)?>)(?!\`)`, 'gim'),
+        (match, before, tag) => `${before}\`${tag}\``
+      );
+    };
 
-    // Escape closing tags that appear as text (not preceded by >, not followed by <)
-    markdown = markdown.replace(
-      new RegExp(`(?<![>\`])(<\\/(?:${htmlTagNames})>)(?![<])`, 'gi'),
-      '`$1`'
-    );
+    const escapeClosingTags = () => {
+      return markdown.replace(
+        new RegExp(`(^|[^>])(<\\/(?:${htmlTagNames})>)(?!\`)`, 'gim'),
+        (match, before, tag) => `${before}\`${tag}\``
+      );
+    };
+
+    // Run multiple passes to catch adjacent tags
+    for (let i = 0; i < 5; i++) {
+      const before = markdown;
+      markdown = escapeOpeningTags();
+      markdown = escapeClosingTags();
+      if (markdown === before) break; // No more changes
+    }
+
+    // Restore code blocks
+    codeBlockPlaceholders.forEach((block, i) => {
+      markdown = markdown.replace(`__CODE_BLOCK_${i}__`, block);
+    });
 
     return markdown;
   }
@@ -540,6 +605,7 @@ class ConfluenceToVuePress {
     const attachments = await this.downloadAttachments(pageId, pageSlug, dirPath);
 
     const htmlContent = page.body.storage.value;
+
     let markdownContent = this.convertToMarkdown(htmlContent, attachments, pageSlug);
 
     const attachmentDir = path.join(dirPath, 'attachments', pageSlug);
