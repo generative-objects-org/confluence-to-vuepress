@@ -5,6 +5,7 @@
 
 const axios = require('axios');
 const TurndownService = require('turndown');
+const turndownPluginGfm = require('turndown-plugin-gfm');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -14,6 +15,9 @@ function createTurndownService() {
     headingStyle: 'atx',
     codeBlockStyle: 'fenced'
   });
+
+  // Add GFM plugin for tables, strikethrough, etc.
+  turndownService.use(turndownPluginGfm.gfm);
 
   // Custom rules for better conversion
   turndownService.addRule('confluenceCodeBlock', {
@@ -120,6 +124,26 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
   });
 
   html = html.replace(/<ac:parameter[^>]*>[\s\S]*?<\/ac:parameter>/gi, '');
+
+  // Clean up table HTML for better markdown conversion
+  // Remove colgroup/col elements that confuse Turndown
+  html = html.replace(/<colgroup>[\s\S]*?<\/colgroup>/gi, '');
+  // Remove data attributes from table elements
+  html = html.replace(/<table[^>]*>/gi, '<table>');
+  // Strip <p> tags from inside table cells (keep content)
+  html = html.replace(/(<t[hd][^>]*>)\s*<p[^>]*>([\s\S]*?)<\/p>\s*(<\/t[hd]>)/gi, '$1$2$3');
+  // Handle cells with multiple <p> tags or lists - convert to breaks
+  html = html.replace(/<\/p>\s*<p[^>]*>/gi, '<br/>');
+  // Clean remaining <p> tags in cells
+  html = html.replace(/(<t[hd][^>]*>)\s*<p[^>]*>/gi, '$1');
+  html = html.replace(/<\/p>\s*(<\/t[hd]>)/gi, '$1');
+  // Clean up attributes on th/td (but not thead/tbody)
+  html = html.replace(/<(th|td)\s+[^>]*>/gi, '<$1>');
+  // Move header row (containing <th>) from tbody to thead for proper markdown conversion
+  html = html.replace(
+    /<table>\s*<tbody>\s*(<tr>(?:\s*<th>[\s\S]*?<\/th>\s*)+<\/tr>)/gi,
+    '<table><thead>$1</thead><tbody>'
+  );
 
   // Convert <ac:link> to standard links where possible
   html = html.replace(
@@ -442,6 +466,7 @@ class ConfluenceToVuePress {
    */
   convertToMarkdown(html, attachments = [], pageSlug = '') {
     html = preprocessConfluenceHtml(html, pageSlug, attachments);
+
     let markdown = this.turndownService.turndown(html);
 
     // Fix attachment links
@@ -456,14 +481,20 @@ class ConfluenceToVuePress {
       '`<$1>`'
     );
 
-    // Escape HTML tags in text
+    // Escape HTML tags that appear as text references (not part of HTML structure)
+    // Only escape when preceded by space/punctuation/start (not by >) and followed by space/punctuation/end (not by <)
+    // This preserves actual HTML structure while escaping documentation references like "use <ul> tags"
+    const htmlTagNames = 'div|span|form|input|button|select|textarea|label|ul|ol|li|p|br|img|dl|dt|dd|a|hr|header|footer|section|aside|nav|article|main|figure|figcaption|table|tr|td|th|thead|tbody|h[1-6]';
+
+    // Escape opening tags that appear as text (preceded by word boundary or punctuation, not >)
     markdown = markdown.replace(
-      /(?<!`)(<(?:div|span|form|input|button|select|textarea|label|table|tr|td|th|thead|tbody|ul|ol|li|dl|dt|dd|p|a|img|hr|br|header|footer|section|aside|nav|article|main|figure|figcaption|h[1-6])(?:\s[^>]*)?>)/gi,
+      new RegExp(`(?<![>\`])(<(?:${htmlTagNames})(?:\\s[^>]*)?>)(?![<])`, 'gi'),
       '`$1`'
     );
 
+    // Escape closing tags that appear as text (not preceded by >, not followed by <)
     markdown = markdown.replace(
-      /(?<!`)(<\/(?:div|span|form|input|button|select|textarea|label|table|tr|td|th|thead|tbody|ul|ol|li|dl|dt|dd|p|a|img|hr|br|header|footer|section|aside|nav|article|main|figure|figcaption|h[1-6])>)/gi,
+      new RegExp(`(?<![>\`])(<\\/(?:${htmlTagNames})>)(?![<])`, 'gi'),
       '`$1`'
     );
 
