@@ -145,12 +145,31 @@ function preprocessConfluenceHtml(html, pageSlug, attachments = []) {
     '<table><thead>$1</thead><tbody>'
   );
 
-  // Convert <ac:link> to standard links where possible
+  // Convert <ac:link> to standard links - handle multiple formats
+  // Format 1: <ac:link-body>text</ac:link-body>
+  html = html.replace(
+    /<ac:link[^>]*>[\s\S]*?<ri:page\s+ri:content-title="([^"]+)"[^>]*\/>[\s\S]*?<ac:link-body>([^<]*)<\/ac:link-body>[\s\S]*?<\/ac:link>/gi,
+    (match, pageTitle, linkText) => {
+      const slug = pageTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      return `<a href="CONFLUENCE_LINK:${slug}">${linkText || pageTitle}</a>`;
+    }
+  );
+
+  // Format 2: <ac:plain-text-link-body><![CDATA[text]]></ac:plain-text-link-body>
   html = html.replace(
     /<ac:link[^>]*>[\s\S]*?<ri:page\s+ri:content-title="([^"]+)"[^>]*\/>[\s\S]*?<ac:plain-text-link-body><!\[CDATA\[([^\]]+)\]\]><\/ac:plain-text-link-body>[\s\S]*?<\/ac:link>/gi,
     (match, pageTitle, linkText) => {
       const slug = pageTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      return `<a href="../${slug}/">${linkText}</a>`;
+      return `<a href="CONFLUENCE_LINK:${slug}">${linkText || pageTitle}</a>`;
+    }
+  );
+
+  // Format 3: Just ri:page without explicit link body - use page title as link text
+  html = html.replace(
+    /<ac:link[^>]*>[\s\S]*?<ri:page\s+ri:content-title="([^"]+)"[^>]*\/>[\s\S]*?<\/ac:link>/gi,
+    (match, pageTitle) => {
+      const slug = pageTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      return `<a href="CONFLUENCE_LINK:${slug}">${pageTitle}</a>`;
     }
   );
 
@@ -660,6 +679,82 @@ actions:
   }
 
   /**
+   * Fix Confluence links in all generated markdown files
+   */
+  async fixConfluenceLinks() {
+    // Build slug to path mapping
+    const slugToPath = new Map();
+    for (const [pageId, pageInfo] of this.pageMap) {
+      const slug = slugify(pageInfo.title);
+      slugToPath.set(slug, pageInfo.path);
+    }
+
+    // Pattern to match our placeholder links: [text](CONFLUENCE_LINK:slug)
+    const placeholderPattern = /\[([^\]]+)\]\(CONFLUENCE_LINK:([^)]+)\)/g;
+
+    // Pattern to match Confluence page URLs (for links that weren't converted)
+    const confluenceUrlPattern = /\[([^\]]+)\]\(((?:https?:\/\/[^\/]+)?\/wiki\/spaces\/[^\/]+\/pages\/(\d+)[^)]*)\)/g;
+
+    let fixedCount = 0;
+
+    // Build page ID to path mapping for URL-based links
+    const pageIdToPath = new Map();
+    for (const [pageId, pageInfo] of this.pageMap) {
+      pageIdToPath.set(pageId, pageInfo.path);
+    }
+
+    // Process all markdown files
+    for (const [pageId, pageInfo] of this.pageMap) {
+      const mdPath = path.join(this.config.outputDir, pageInfo.path, 'README.md');
+
+      try {
+        let content = await fs.readFile(mdPath, 'utf-8');
+        let modified = false;
+
+        // Fix placeholder links
+        content = content.replace(placeholderPattern, (match, linkText, targetSlug) => {
+          const targetPath = slugToPath.get(targetSlug);
+          if (targetPath) {
+            const currentParts = pageInfo.path.split('/').filter(Boolean);
+            const targetParts = targetPath.split('/').filter(Boolean);
+            const ups = currentParts.length;
+            const relativePath = '../'.repeat(ups) + targetParts.join('/') + '/';
+            modified = true;
+            fixedCount++;
+            return `[${linkText}](${relativePath})`;
+          }
+          // Link to page not in migration - remove the placeholder but keep as text
+          modified = true;
+          return linkText;
+        });
+
+        // Fix Confluence URL links
+        content = content.replace(confluenceUrlPattern, (match, linkText, fullUrl, targetPageId) => {
+          const targetPath = pageIdToPath.get(targetPageId);
+          if (targetPath) {
+            const currentParts = pageInfo.path.split('/').filter(Boolean);
+            const targetParts = targetPath.split('/').filter(Boolean);
+            const ups = currentParts.length;
+            const relativePath = '../'.repeat(ups) + targetParts.join('/') + '/';
+            modified = true;
+            fixedCount++;
+            return `[${linkText}](${relativePath})`;
+          }
+          return match;
+        });
+
+        if (modified) {
+          await fs.writeFile(mdPath, content, 'utf-8');
+        }
+      } catch (error) {
+        // File might not exist, skip
+      }
+    }
+
+    console.log(`✓ Fixed ${fixedCount} internal links`);
+  }
+
+  /**
    * Run the migration
    */
   async migrate() {
@@ -672,6 +767,9 @@ actions:
 
     console.log('📄 Fetching and converting pages...\n');
     await this.processPage(this.config.rootPageId);
+
+    console.log('\n🔗 Fixing internal links...');
+    await this.fixConfluenceLinks();
 
     console.log('\n⚙️  Generating VuePress configuration...');
     const vuepressConfig = this.generateVuePressConfig();
