@@ -549,33 +549,44 @@ class ConfluenceToVuePress {
       return `__CODE_BLOCK_${codeBlockPlaceholders.length - 1}__`;
     });
 
-    // HTML tags to escape when they appear as text
-    const htmlTagNames = 'div|span|form|input|button|select|textarea|label|ul|ol|li|p|br|img|dl|dt|dd|a|hr|header|footer|section|aside|nav|article|main|figure|figcaption|table|tr|td|th|thead|tbody|h[1-6]';
+    // Protect HTML tables from escaping (they should render as HTML in VuePress)
+    const tablePlaceholders = [];
+    markdown = markdown.replace(/<table[\s\S]*?<\/table>/gi, (match) => {
+      tablePlaceholders.push(match);
+      return `__TABLE_${tablePlaceholders.length - 1}__`;
+    });
 
-    // Escape HTML tags that appear as text references (like "use <ul> tags" or "<ol><li>")
+    // HTML tags to escape when they appear as text (excluding table-related tags which are protected)
+    const htmlTagNames = 'div|span|form|input|button|select|textarea|label|ul|ol|li|p|br|img|dl|dt|dd|a|hr|header|footer|section|aside|nav|article|main|figure|figcaption|h[1-6]';
+
+    // Escape ALL matching HTML tags (not just those in text context)
     // Use negative lookahead (?!`) to prevent re-escaping already-escaped tags
-    // Allow backticks in "before" so adjacent tags like `<ol>`<li> can match <li>
     const escapeOpeningTags = () => {
       return markdown.replace(
-        new RegExp(`(^|[^>])(<(?:${htmlTagNames})(?:\\s[^>]*)?>)(?!\`)`, 'gim'),
-        (match, before, tag) => `${before}\`${tag}\``
+        new RegExp(`(<(?:${htmlTagNames})(?:\\s[^>]*)?>)(?!\`)`, 'gi'),
+        '`$1`'
       );
     };
 
     const escapeClosingTags = () => {
       return markdown.replace(
-        new RegExp(`(^|[^>])(<\\/(?:${htmlTagNames})>)(?!\`)`, 'gim'),
-        (match, before, tag) => `${before}\`${tag}\``
+        new RegExp(`(<\\/(?:${htmlTagNames})>)(?!\`)`, 'gi'),
+        '`$1`'
       );
     };
 
-    // Run multiple passes to catch adjacent tags
-    for (let i = 0; i < 5; i++) {
+    // Run multiple passes to catch all tags
+    for (let i = 0; i < 3; i++) {
       const before = markdown;
       markdown = escapeOpeningTags();
       markdown = escapeClosingTags();
       if (markdown === before) break; // No more changes
     }
+
+    // Restore tables
+    tablePlaceholders.forEach((table, i) => {
+      markdown = markdown.replace(`__TABLE_${i}__`, table);
+    });
 
     // Restore code blocks
     codeBlockPlaceholders.forEach((block, i) => {
@@ -745,6 +756,53 @@ actions:
   }
 
   /**
+   * Create custom VuePress styles for full-width content
+   */
+  async createCustomStyles() {
+    const stylesDir = path.join(this.config.outputDir, '.vuepress', 'styles');
+    await ensureDir(stylesDir);
+
+    const styles = `// Custom styles for full-width content (like Confluence)
+// Override the default theme's CSS variables
+
+:root {
+  // Set content width to use available space
+  --content-width: 100%;
+  --homepage-width: 100%;
+}
+
+// Additional overrides for full-width layout
+.theme-default-content {
+  max-width: none !important;
+  padding: 0 2rem;
+}
+
+.page {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+// Ensure tables can use full width
+table {
+  display: table;
+  width: 100%;
+}
+
+// Adjust code blocks for wider content
+div[class*="language-"] {
+  max-width: none;
+}
+
+// Sidebar adjustment for wider content
+.sidebar {
+  width: 280px;
+}
+`;
+
+    await fs.writeFile(path.join(stylesDir, 'index.scss'), styles, 'utf-8');
+  }
+
+  /**
    * Fix Confluence links in all generated markdown files
    */
   async fixConfluenceLinks() {
@@ -849,6 +907,10 @@ actions:
     const configPath = path.join(this.config.outputDir, '.vuepress', 'config.js');
     await fs.writeFile(configPath, vuepressConfig, 'utf-8');
     console.log(`✓ Saved: ${configPath}`);
+
+    console.log('\n🎨 Creating custom styles...');
+    await this.createCustomStyles();
+    console.log(`✓ Saved: ${path.join(this.config.outputDir, '.vuepress', 'styles', 'index.scss')}`);
 
     console.log('\n📝 Creating homepage...');
     await this.createHomepage();
