@@ -225,7 +225,7 @@ docs/
 | Images & attachments | Downloaded locally |
 | External images | Downloaded locally |
 | Code blocks | Preserved with syntax highlighting |
-| Tables | Converted to Markdown tables |
+| Tables | Converted to Markdown tables (complex tables with colspan stay as HTML) |
 | Internal links | Converted to relative links |
 | External links | Preserved |
 
@@ -252,7 +252,8 @@ The tool handles various Confluence-specific elements and edge cases:
 | Note panels (`ac:name="note"`) | Converted to blockquote with **NOTE:** prefix |
 | Warning panels (`ac:name="warning"`) | Converted to blockquote with **WARNING:** prefix |
 | Tip panels (`ac:name="tip"`) | Converted to blockquote with **TIP:** prefix |
-| Other `ac:structured-macro` | Removed (content not preservable) |
+| Self-closing macros (TOC, etc.) | Removed cleanly |
+| Other `ac:structured-macro` | Removed, but images inside are preserved |
 
 ### Links
 
@@ -262,12 +263,21 @@ The tool handles various Confluence-specific elements and edge cases:
 | External links | Preserved as-is |
 | Confluence download URLs | Converted to local paths |
 
+### Tables
+
+| Element | Handling |
+|---------|----------|
+| Simple tables with headers | Converted to GFM markdown tables |
+| Tables with `colspan`/`rowspan` | Kept as HTML (VuePress renders them) |
+| `<colgroup>` and `<col>` | Removed (not needed for rendering) |
+| `<p>` tags inside cells | Stripped for cleaner markdown conversion |
+
 ### VuePress Compatibility
 
 | Issue | Handling |
 |-------|----------|
 | Type-like tags (`<Type>`, `<Entity>`) | Escaped with backticks to prevent Vue errors |
-| HTML tags in text (`<div>`, `<span>`) | Escaped with backticks |
+| HTML tags in text (`<ul>`, `<div>`) | Smart escaping preserves HTML structure in tables |
 | YAML special characters in titles | Properly quoted in frontmatter |
 | SVG icons | Removed (decorative) |
 | Heading anchor buttons | Removed (navigation clutter) |
@@ -325,4 +335,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [VuePress](https://vuepress.vuejs.org/) - Vue-powered static site generator
 - [Turndown](https://github.com/mixmark-io/turndown) - HTML to Markdown converter
+- [turndown-plugin-gfm](https://github.com/mixmark-io/turndown-plugin-gfm) - GFM tables support
 - [Confluence REST API](https://developer.atlassian.com/cloud/confluence/rest/)
